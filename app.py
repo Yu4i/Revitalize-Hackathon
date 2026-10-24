@@ -1,6 +1,7 @@
 """ReFound website. Run with:  streamlit run app.py"""
 import pandas as pd
 import streamlit as st
+st.captopn("Metadata provided by TMDB. Streaming data by JustWatch.")
 
 from search import load_index, search_media
 
