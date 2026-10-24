@@ -5,6 +5,7 @@ import pandas as pd
 import streamlit as st
 
 from search import load_index, search_media
+from shelf import render_shelf
 from where_now import get_streaming_providers
 
 APP_NAME = "Lost Media"
@@ -54,6 +55,9 @@ button[kind="primary"], [data-testid="stBaseButton-primary"] {
     font-weight: 700;
 }
 
+/* Tabs in the retro font */
+[data-testid="stTabs"] button p { font-family: 'Bungee', sans-serif; font-size: 1rem; }
+
 /* Result cards, styled like tape boxes on a shelf */
 [class*="st-key-card-"] {
     background: #2A1F4A;
@@ -62,7 +66,8 @@ button[kind="primary"], [data-testid="stBaseButton-primary"] {
 }
 .st-key-card-0 { border-color: #F72585 !important; }
 [class*="st-key-card-"] [data-testid="stImage"] img { border-radius: 4px; }
-[class*="st-key-card-"] .stMarkdown img { height: 34px; border-radius: 8px; margin: 0 4px 4px 0; }
+[class*="st-key-card-"] .stMarkdown img,
+.st-key-spotlight .stMarkdown img { height: 34px; border-radius: 8px; margin: 0 4px 4px 0; }
 
 .lm-sticker {
     display: inline-block;
@@ -102,115 +107,120 @@ st.markdown(
 
 media, _ = load_index()
 
-# ---- Search state ----
-# Streamlit re-runs this whole file on every click, which would forget
-# everything. st.session_state survives re-runs, so the clues live there.
-if "clues" not in st.session_state:
-    st.session_state.clues = []
+find_tab, shelf_tab = st.tabs(["Find a lost show", "Your childhood shelf"])
 
+# ======================= Tab 2: Your childhood shelf =======================
+with shelf_tab:
+    render_shelf(media)
 
-
-
-memory = st.text_area(
-    "What do you remember?",
-    key="memory",
-    placeholder="A cartoon about a boy who found a watch that turned him into aliens...",
-)
-
-# ---- Filters (tucked away; most people won't need them) ----
-with st.expander("Narrow it down by type or year"):
-    col1, col2 = st.columns(2)
-    media_type = col1.selectbox("Type", ["All"] + sorted(media["type"].unique()))
-    years = pd.to_numeric(media["year"], errors="coerce").dropna().astype(int)
-    first, last = int(years.min()), int(years.max())
-    year_range = col2.slider("Came out between", first, last, (first, last))
-
-if st.button("Find it", type="primary", width="stretch"):
-    if memory.strip():
-        st.session_state.clues = [memory.strip()]  # a new search starts fresh
-    else:
-        st.warning("Type something you remember first.")
-
-# ---- Results ----
-if st.session_state.clues:
-    query = ". ".join(st.session_state.clues)
-    with st.spinner("Rewinding the tape..."):
-        results = search_media(query, media_type, year_range)
-
-    if len(st.session_state.clues) > 1:
-        chips = "".join(f'<span class="lm-chip">{html.escape(c)}</span>' for c in st.session_state.clues)
-        st.markdown(f"Your clues: {chips}", unsafe_allow_html=True)
-
-    # ---- Add more clues (above the results) ----
-    st.markdown("#### Remember more? Add a clue")
-    with st.form("more_clues", clear_on_submit=True):
-        clue = st.text_input(
-            "Anything else you remember?",
-            placeholder="It was animated / there was a talking cat / it came out in the 90s",
-        )
-        add_clue = st.form_submit_button("Search again")
-
-    if add_clue and clue.strip():
-        st.session_state.clues.append(clue.strip())
-        st.rerun()
-
-    if st.button("Start over"):
+# ======================= Tab 1: Find a lost show =======================
+with find_tab:
+    # ---- Search state ----
+    # Streamlit re-runs this whole file on every click, which would forget
+    # everything. st.session_state survives re-runs, so the clues live there.
+    if "clues" not in st.session_state:
         st.session_state.clues = []
-        st.rerun()
 
-    st.subheader("Possible matches")
-    if results.empty:
-        st.info("No matches. Try loosening the filters or adding more detail.")
-    else:
-        for i, (_, row) in enumerate(results.iterrows()):
-            with st.container(border=True, key=f"card-{i}"):
-                poster_col, text_col = st.columns([1, 2.4])
+    memory = st.text_area(
+        "What do you remember?",
+        key="memory",
+        placeholder="A cartoon about a boy who found a watch that turned him into aliens...",
+    )
 
-                poster = row.get("poster_url", "")
-                if poster:
-                    poster_col.image(poster, width=150)
-                else:
-                    poster_col.markdown("### 📼")
+    # ---- Filters (tucked away; most people won't need them) ----
+    with st.expander("Narrow it down by type or year"):
+        col1, col2 = st.columns(2)
+        media_type = col1.selectbox("Type", ["All"] + sorted(media["type"].unique()))
+        years = pd.to_numeric(media["year"], errors="coerce").dropna().astype(int)
+        first, last = int(years.min()), int(years.max())
+        year_range = col2.slider("Came out between", first, last, (first, last))
 
-                # Show "2004", not "2004.0" (and nothing if the year is unknown)
-                year = pd.to_numeric(row["year"], errors="coerce")
-                year_text = f", {int(year)}" if pd.notna(year) else ""
+    if st.button("Find it", type="primary", width="stretch"):
+        if memory.strip():
+            st.session_state.clues = [memory.strip()]  # a new search starts fresh
+        else:
+            st.warning("Type something you remember first.")
 
-                sticker = '<span class="lm-sticker">Top pick</span><br>' if i == 0 else ""
-                text_col.markdown(
-                    f'{sticker}<div class="lm-card-title">{html.escape(str(row["title"]))}</div>'
-                    f'<p class="lm-meta">{html.escape(str(row["type"]))}{year_text}</p>',
-                    unsafe_allow_html=True,
-                )
-                text_col.write(row["description"])
+    # ---- Results ----
+    if st.session_state.clues:
+        query = ". ".join(st.session_state.clues)
+        with st.spinner("Rewinding the tape..."):
+            results = search_media(query, media_type, year_range)
 
-                # ---- Where is it now? ----
-                providers = None
-                tmdb_id = row.get("tmdb_id", "")
-                if pd.notna(tmdb_id) and str(tmdb_id).strip():  # the sample data has no TMDB ids
-                    providers = get_streaming_providers(row["tmdb_id"], row["type"])
+        if len(st.session_state.clues) > 1:
+            chips = "".join(f'<span class="lm-chip">{html.escape(c)}</span>' for c in st.session_state.clues)
+            st.markdown(f"Your clues: {chips}", unsafe_allow_html=True)
 
-                if not providers:
-                    pass  # no data: show nothing
-                elif "error" in providers:
-                    # Only show the friendly message; technical errors stay hidden from users
-                    if providers["error"].startswith("Not streaming"):
-                        text_col.caption(f"_{providers['error']}_")
-                else:
-                    logos_md = ""
-                    seen_ids = set()
-                    # combine streaming, renting, and buying options without duplicate logos
-                    for category in ["flatrate", "rent", "buy"]:
-                        for p in providers.get(category, []):
-                            if p["provider_id"] not in seen_ids:
-                                img_url = f"https://image.tmdb.org/t/p/w92{p['logo_path']}"
-                                logos_md += f"![{p['provider_name']}]({img_url}) "
-                                seen_ids.add(p["provider_id"])
+        # ---- Add more clues (above the results) ----
+        st.markdown("#### Remember more? Add a clue")
+        with st.form("more_clues", clear_on_submit=True):
+            clue = st.text_input(
+                "Anything else you remember?",
+                placeholder="It was animated / there was a talking cat / it came out in the 90s",
+            )
+            add_clue = st.form_submit_button("Search again")
 
-                    if logos_md:
-                        text_col.markdown(logos_md)
-                    if providers.get("link"):
-                        text_col.markdown(f"[**Where to watch in Canada**]({providers['link']})")
+        if add_clue and clue.strip():
+            st.session_state.clues.append(clue.strip())
+            st.rerun()
+
+        if st.button("Start over"):
+            st.session_state.clues = []
+            st.rerun()
+
+        st.subheader("Possible matches")
+        if results.empty:
+            st.info("No matches. Try loosening the filters or adding more detail.")
+        else:
+            for i, (_, row) in enumerate(results.iterrows()):
+                with st.container(border=True, key=f"card-{i}"):
+                    poster_col, text_col = st.columns([1, 2.4])
+
+                    poster = row.get("poster_url", "")
+                    if poster:
+                        poster_col.image(poster, width=150)
+                    else:
+                        poster_col.markdown("### 📼")
+
+                    # Show "2004", not "2004.0" (and nothing if the year is unknown)
+                    year = pd.to_numeric(row["year"], errors="coerce")
+                    year_text = f", {int(year)}" if pd.notna(year) else ""
+
+                    sticker = '<span class="lm-sticker">Top pick</span><br>' if i == 0 else ""
+                    text_col.markdown(
+                        f'{sticker}<div class="lm-card-title">{html.escape(str(row["title"]))}</div>'
+                        f'<p class="lm-meta">{html.escape(str(row["type"]))}{year_text}</p>',
+                        unsafe_allow_html=True,
+                    )
+                    text_col.write(row["description"])
+
+                    # ---- Where is it now? ----
+                    providers = None
+                    tmdb_id = row.get("tmdb_id", "")
+                    if pd.notna(tmdb_id) and str(tmdb_id).strip():  # the sample data has no TMDB ids
+                        providers = get_streaming_providers(row["tmdb_id"], row["type"])
+
+                    if not providers:
+                        pass  # no data: show nothing
+                    elif "error" in providers:
+                        # Only show the friendly message; technical errors stay hidden from users
+                        if providers["error"].startswith("Not streaming"):
+                            text_col.caption(f"_{providers['error']}_")
+                    else:
+                        logos_md = ""
+                        seen_ids = set()
+                        # combine streaming, renting, and buying options without duplicate logos
+                        for category in ["flatrate", "rent", "buy"]:
+                            for p in providers.get(category, []):
+                                if p["provider_id"] not in seen_ids:
+                                    img_url = f"https://image.tmdb.org/t/p/w92{p['logo_path']}"
+                                    logos_md += f"![{p['provider_name']}]({img_url}) "
+                                    seen_ids.add(p["provider_id"])
+
+                        if logos_md:
+                            text_col.markdown(logos_md)
+                        if providers.get("link"):
+                            text_col.markdown(f"[**Where to watch in Canada**]({providers['link']})")
 
 st.divider()
 st.caption(
