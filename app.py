@@ -39,8 +39,16 @@ if st.button("Find My Media", type="primary"):
     else:
         st.warning("Type something you remember first.")
 
-# ---- Add more clues ----
-    st.markdown("#### Not it? Add another clue")
+if st.session_state.clues:
+    query = ". ".join(st.session_state.clues)
+    with st.spinner("Searching your memories..."):
+        results = search_media(query, media_type, year_range)
+
+    if len(st.session_state.clues) > 1:
+        st.caption("Your clues: " + " · ".join(st.session_state.clues))
+
+    # ---- Add more clues (above the results) ----
+    st.markdown("#### Remember more? Add a clue")
     with st.form("more_clues", clear_on_submit=True):
         clue = st.text_input(
             "Anything else you remember?",
@@ -55,15 +63,6 @@ if st.button("Find My Media", type="primary"):
     if st.button("Start over"):
         st.session_state.clues = []
         st.rerun()
-
-
-if st.session_state.clues:
-    query = ". ".join(st.session_state.clues)
-    with st.spinner("Searching your memories..."):
-        results = search_media(query, media_type, year_range)
-
-    if len(st.session_state.clues) > 1:
-        st.caption("Your clues: " + " · ".join(st.session_state.clues))
 
     st.subheader("Possible matches")
     if results.empty:
@@ -116,7 +115,6 @@ if st.session_state.clues:
 
             st.divider()
 
-    
 st.caption(
     "This product uses the TMDB API but is not endorsed or certified by TMDB. "
     "Streaming data by JustWatch."
