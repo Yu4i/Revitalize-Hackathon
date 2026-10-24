@@ -1,9 +1,8 @@
 title,year,type,description,genres,poster_url,tmdb_id
-WALL-E,2008,Movie,A lonely robot cleans up garbage on an abandoned Earth and meets another robot,Animation Family Science Fiction,,
-Ben 10,2005,TV Show,A young boy discovers a mysterious watch that lets him transform into different aliens,Animation Action Kids,,
-Finding Nemo,2003,Movie,A father fish searches the ocean for his missing son,Animation Family Adventure,,
-The Matrix,1999,Movie,A computer hacker discovers that reality is a simulation controlled by machines,Action Science Fiction,,
-Minecraft,2011,Game,A sandbox video game where players mine resources craft tools and build structures,Sandbox Survival,,
-Toy Story,1995,Movie,A group of toys secretly come to life when humans are not around,Animation Family Comedy,,
-Avatar The Last Airbender,2005,TV Show,A young boy must master four elements to restore balance to the world,Animation Action Adventure Kids,,
-Ratatouille,2007,Movie,A rat dreams of becoming a chef in a restaurant in Paris,Animation Family Comedy,,
+WALL-E,2008,Movie,A lonely robot cleans up garbage on an abandoned Earth and meets another robot,Animation Family Science Fiction,,10681
+Ben 10,2005,TV Show,A young boy discovers a mysterious watch that lets him transform into different aliens,Animation Action Kids,,4686
+Finding Nemo,2003,Movie,A father fish searches the ocean for his missing son,Animation Family Adventure,,12
+The Matrix,1999,Movie,A computer hacker discovers that reality is a simulation controlled by machines,Action Science Fiction,,603
+Toy Story,1995,Movie,A group of toys secretly come to life when humans are not around,Animation Family Comedy,,862
+Avatar The Last Airbender,2005,TV Show,A young boy must master four elements to restore balance to the world,Animation Action Adventure Kids,,246
+Ratatouille,2007,Movie,A rat dreams of becoming a chef in a restaurant in Paris,Animation Family Comedy,,2062
