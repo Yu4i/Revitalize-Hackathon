@@ -27,7 +27,7 @@ def get_streaming_providers(tmdb_id, media_type):
     }
 
     try:
-        response = requests.get(url, headers=headers)
+        response = requests.get(url, headers=headers, timeout=10)  # never hang the page
         if response.status_code != 200:
             return {"error": f"API Rejected: {response.status_code} - {response.text}"}
             
