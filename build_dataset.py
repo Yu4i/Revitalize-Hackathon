@@ -58,8 +58,11 @@ def fetch(kind, pages, with_genres=None):
             params["with_genres"] = with_genres
         data = get(f"/discover/{kind}", **params)
         for item in data["results"]:
+            if kind == "tv" and item["id"] == 110290:
+                continue  # exclde this tv show
+
             if not item.get("overview"):
-                continue  # nothing to search on
+                continue  # nothing to sreach on
             date = item.get("release_date") or item.get("first_air_date") or ""
             rows.append({
                 "title": item.get("title") or item.get("name"),
