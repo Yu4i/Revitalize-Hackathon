@@ -8,3 +8,4 @@ pandas
 numpy
 requests
 python-dotenv
+torchvision
