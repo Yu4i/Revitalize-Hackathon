@@ -26,32 +26,61 @@ memory = st.text_area(
 )
 
 # ---- Search ----
+# Streamlit re-runs this whole file on every click, which would forget
+# everything. st.session_state survives re-runs, so the clues live there.
+if "clues" not in st.session_state:
+    st.session_state.clues = []
+
 if st.button("Find My Media", type="primary"):
-    if not memory.strip():
-        st.warning("Type something you remember first.")
+    if memory.strip():
+        st.session_state.clues = [memory.strip()]  # a new search starts fresh
     else:
-        with st.spinner("Searching your memories..."):
-            results = search_media(memory, media_type, year_range)
+        st.warning("Type something you remember first.")
 
-        st.subheader("Possible matches")
-        if results.empty:
-            st.info("No matches. Try loosening the filters or adding more detail.")
-        else:
-            for _, row in results.iterrows():
-                poster_col, text_col = st.columns([1, 3])
+if st.session_state.clues:
+    query = ". ".join(st.session_state.clues)
+    with st.spinner("Searching your memories..."):
+        results = search_media(query, media_type, year_range)
 
-                poster = row.get("poster_url", "")
-                if poster:
-                    poster_col.image(poster, width=140)
-                else:
-                    poster_col.markdown("### 🎞️")
+    if len(st.session_state.clues) > 1:
+        st.caption("Your clues: " + " · ".join(st.session_state.clues))
 
-                text_col.markdown(f"### {row['title']} ({row['year']})")
-                text_col.caption(f"{row['type']} · match score {row['score']:.2f}")
-                text_col.write(row["description"])
-                # TODO (Person 3): "Where is it now?" streaming links go here
+    st.subheader("Possible matches")
+    if results.empty:
+        st.info("No matches. Try loosening the filters or adding more detail.")
+    else:
+        for _, row in results.iterrows():
+            poster_col, text_col = st.columns([1, 3])
 
-                st.divider()
+            poster = row.get("poster_url", "")
+            if poster:
+                poster_col.image(poster, width=140)
+            else:
+                poster_col.markdown("### 🎞️")
+
+            text_col.markdown(f"### {row['title']} ({row['year']})")
+            text_col.caption(f"{row['type']} · match score {row['score']:.2f}")
+            text_col.write(row["description"])
+            # TODO (Person 3): "Where is it now?" streaming links go here
+
+            st.divider()
+
+    # ---- Add more clues ----
+    st.markdown("#### Not it? Add another clue")
+    with st.form("more_clues", clear_on_submit=True):
+        clue = st.text_input(
+            "Anything else you remember?",
+            placeholder="It was animated / there was a talking cat / it came out in the 90s",
+        )
+        add_clue = st.form_submit_button("Search again")
+
+    if add_clue and clue.strip():
+        st.session_state.clues.append(clue.strip())
+        st.rerun()
+
+    if st.button("Start over"):
+        st.session_state.clues = []
+        st.rerun()
 
 st.caption(
     "This product uses the TMDB API but is not endorsed or certified by TMDB."
