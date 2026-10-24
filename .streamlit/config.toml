@@ -1,0 +1,7 @@
+# App-wide colours (retro VHS theme). Streamlit reads this file automatically.
+[theme]
+base = "dark"
+primaryColor = "#F72585"
+backgroundColor = "#1A1230"
+secondaryBackgroundColor = "#2A1F4A"
+textColor = "#F3E9D2"
