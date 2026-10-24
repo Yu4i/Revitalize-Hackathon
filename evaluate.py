@@ -9,11 +9,15 @@
 
   python evaluate.py --fields genres,description
       Experiment: changes which columns the AI reads (default:
-      title,genres,keywords,description). Combine with --model if you like.
+      title,genres,keywords,description).
 
-For each memory it prints where the right answer ranked out of ALL titles,
-so "miss (#47)" means the search found it but ranked it too low, and
-"NOT IN DATABASE" means it's a data problem, not a search problem.
+  python evaluate.py --boost 0,0.05,0.1,0.15,0.2
+      Experiment: compares how much fame should count (needs vote_count in
+      media.csv; see add_popularity.py). Prints one summary line per value.
+
+Combine any of the experiment flags. For each memory it prints where the
+right answer ranked out of ALL titles, so "miss (#47)" means the search found
+it but ranked it too low, and "NOT IN DATABASE" means it's a data problem.
 """
 import argparse
 import re
@@ -23,6 +27,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from search import FULL_DATA, MODEL_NAME, POPULARITY_BOOST, SAMPLE_DATA, popularity_scores, read_media
+
 DEFAULT_FIELDS = "title,genres,keywords,description"
 
 
@@ -30,11 +36,6 @@ def normalize(title: str) -> str:
     """'Pokémon' -> 'pokemon', 'Monsters, Inc.' -> 'monstersinc'."""
     text = unicodedata.normalize("NFKD", str(title)).encode("ascii", "ignore").decode()
     return re.sub(r"[^a-z0-9]", "", text.lower())
-
-
-def load_media() -> pd.DataFrame:
-    path = "media.csv" if Path("media.csv").exists() else "sample_media.csv"
-    return pd.read_csv(path).fillna("")
 
 
 def load_tests() -> pd.DataFrame:
@@ -52,27 +53,26 @@ def load_tests() -> pd.DataFrame:
 
 
 def app_ranker(media):
-    """Rank every title using the real app search."""
+    """Rank every title using the real app search (its own model and boost)."""
     from search import search_media
 
-    def rank(query):
-        return search_media(query, top_k=len(media))["title"].tolist()
-
-    return rank
+    return lambda query: search_media(query, top_k=len(media))["title"].tolist()
 
 
-def experiment_ranker(media, model_name, fields):
-    """Rank every title with any Sentence Transformers model + chosen columns."""
+def experiment_ranker(media, model_name, fields, boost):
+    """Rank every title with any model, chosen columns and popularity boost."""
     from sentence_transformers import SentenceTransformer
 
     fields = [f.strip() for f in fields.split(",") if f.strip()]
     texts = media.apply(
-        lambda r: ". ".join(str(r[f]) for f in fields if f in r and str(r[f]).strip()),
+        lambda r: ". ".join(
+            str(r[f]) for f in fields if f in r and pd.notna(r[f]) and str(r[f]).strip()
+        ),
         axis=1,
     ).tolist()
 
     model = SentenceTransformer(model_name)
-    stamp = int(Path("media.csv").stat().st_mtime) if Path("media.csv").exists() else 0
+    stamp = int(FULL_DATA.stat().st_mtime) if FULL_DATA.exists() else 0
     cache = Path(".cache") / f"{model_name.replace('/', '_')}__{'-'.join(fields)}__{len(media)}_{stamp}.npy"
     if cache.exists():
         embeddings = np.load(cache)
@@ -83,35 +83,21 @@ def experiment_ranker(media, model_name, fields):
         np.save(cache, embeddings)
 
     titles = media["title"].tolist()
+    fame = popularity_scores(media)
+    query_cache = {}
 
-    def rank(query):
-        scores = embeddings @ model.encode(query, normalize_embeddings=True)
-        return [titles[i] for i in np.argsort(-scores)]
+    def make(b):
+        def rank(query):
+            if query not in query_cache:
+                query_cache[query] = model.encode(query, normalize_embeddings=True)
+            scores = embeddings @ query_cache[query] + b * fame
+            return [titles[i] for i in np.argsort(-scores)]
+        return rank
 
-    return rank
+    return {b: make(b) for b in boost}
 
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--top", type=int, default=5, help="what counts as a hit")
-    parser.add_argument("--model", help="try a different model, e.g. all-mpnet-base-v2")
-    parser.add_argument("--fields", help=f"columns to read (default {DEFAULT_FIELDS})")
-    args = parser.parse_args()
-
-    media = load_media()
-    tests = load_tests()
-
-    if args.model or args.fields:
-        from search import MODEL_NAME
-
-        model = args.model or MODEL_NAME
-        fields = args.fields or DEFAULT_FIELDS
-        print(f"EXPERIMENT  model={model}  fields={fields}\n")
-        rank_all = experiment_ranker(media, model, fields)
-    else:
-        print(f"APP SEARCH  ({len(media)} titles)\n")
-        rank_all = app_ranker(media)
-
+def run(tests, rank_all, top, verbose):
     rows = []
     for _, t in tests.iterrows():
         accepted = {normalize(t["answer"])}
@@ -122,30 +108,78 @@ def main():
 
         if rank is None:
             mark, status = "NOT IN DATABASE", "missing"
-        elif rank <= args.top:
+        elif rank <= top:
             mark, status = f"#{rank}", "hit"
         else:
             mark, status = f"miss (#{rank})", "low"
 
-        print(f"{mark:>15}  [{t['difficulty']:<6}] {t['answer']}")
-        if rank != 1:
-            print(f"{'':>17}got: {', '.join(titles[:3])}")
+        if verbose:
+            print(f"{mark:>15}  [{t['difficulty']:<6}] {t['answer']}")
+            if rank != 1:
+                print(f"{'':>17}got: {', '.join(titles[:3])}")
         rows.append({"difficulty": t["difficulty"], "rank": rank, "status": status})
+    return pd.DataFrame(rows)
 
-    scores = pd.DataFrame(rows)
+
+def summary(scores, top):
     total = len(scores)
     top1 = (scores["rank"] == 1).sum()
     hits = (scores["status"] == "hit").sum()
+    levels = " ".join(
+        f"{(g['status'] == 'hit').sum()}/{len(g)}"
+        for level in ("easy", "medium", "hard")
+        if len(g := scores[scores["difficulty"] == level])
+    )
+    return top1, hits, total, levels
 
+
+def print_full_summary(scores, top):
+    top1, hits, total, _ = summary(scores, top)
     print("\n" + "=" * 44)
     print(f"Top 1 accuracy:  {top1}/{total}  ({top1 / total:.0%})")
-    print(f"Top {args.top} accuracy:  {hits}/{total}  ({hits / total:.0%})")
+    print(f"Top {top} accuracy:  {hits}/{total}  ({hits / total:.0%})")
     for level in ("easy", "medium", "hard"):
         group = scores[scores["difficulty"] == level]
         if len(group):
             print(f"  {level:<7} {(group['status'] == 'hit').sum()}/{len(group)}")
     print(f"Ranked too low:   {(scores['status'] == 'low').sum()}  (search problem)")
     print(f"Not in database:  {(scores['status'] == 'missing').sum()}  (data problem: tell Person 2)")
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--top", type=int, default=5, help="what counts as a hit")
+    parser.add_argument("--model", help="try a different model, e.g. all-mpnet-base-v2")
+    parser.add_argument("--fields", help=f"columns to read (default {DEFAULT_FIELDS})")
+    parser.add_argument("--boost", help="popularity boost(s) to try, e.g. 0,0.1,0.2")
+    args = parser.parse_args()
+
+    media = read_media(FULL_DATA if FULL_DATA.exists() else SAMPLE_DATA)
+    tests = load_tests()
+
+    if not (args.model or args.fields or args.boost):
+        print(f"APP SEARCH  model={MODEL_NAME}  boost={POPULARITY_BOOST}  ({len(media)} titles)\n")
+        print_full_summary(run(tests, app_ranker(media), args.top, verbose=True), args.top)
+        return
+
+    model = args.model or MODEL_NAME
+    fields = args.fields or DEFAULT_FIELDS
+    boosts = [float(b) for b in (args.boost or str(POPULARITY_BOOST)).split(",")]
+    if any(boosts) and "vote_count" not in media.columns:
+        print("Note: media.csv has no vote_count column, so the boost does nothing.")
+        print("      Run python add_popularity.py first.\n")
+
+    print(f"EXPERIMENT  model={model}  fields={fields}  ({len(media)} titles)\n")
+    rankers = experiment_ranker(media, model, fields, boosts)
+
+    if len(boosts) == 1:
+        print_full_summary(run(tests, rankers[boosts[0]], args.top, verbose=True), args.top)
+        return
+
+    print(f"{'boost':>6}  {'top 1':>6}  {f'top {args.top}':>6}   easy/medium/hard")
+    for b in boosts:
+        top1, hits, total, levels = summary(run(tests, rankers[b], args.top, verbose=False), args.top)
+        print(f"{b:>6.2f}  {top1 / total:>6.0%}  {hits / total:>6.0%}   {levels}")
 
 
 if __name__ == "__main__":
