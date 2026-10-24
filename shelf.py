@@ -32,7 +32,7 @@ SHELF_CSS = """
 .lm-shelf-title { font-weight: 700; line-height: 1.2; margin: 0.35rem 0 0; }
 .lm-shelf-year { color: #B9A9D9; margin: 0; }
 .lm-shelf-head { font-family: 'Bungee', sans-serif; font-size: 1.3rem; margin: 0.5rem 0 0.75rem; }
-.st-key-spotlight {
+[class*="st-key-spotlight"] {
     background: #2A1F4A;
     border: 2px solid #4CC9F0 !important;
     border-radius: 6px;
@@ -102,7 +102,8 @@ def _shelf(titles: pd.DataFrame, name: str):
 
 def _spotlight(row):
     """One title pulled off the shelf, shown big with where to watch it."""
-    with st.container(border=True, key="spotlight"):
+    # A new key per pick makes the glitch reveal replay each time
+    with st.container(border=True, key=f"spotlight-{row.name}"):
         poster_col, text_col = st.columns([1, 2.4])
         poster = row.get("poster_url", "")
         if poster:

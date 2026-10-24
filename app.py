@@ -1,9 +1,11 @@
 """Lost Media website. Run with:  streamlit run app.py"""
 import html
+import time
 
 import pandas as pd
 import streamlit as st
 
+import retro_fx
 from search import load_index, search_media
 from shelf import render_shelf
 from where_now import get_streaming_providers
@@ -64,10 +66,10 @@ button[kind="primary"], [data-testid="stBaseButton-primary"] {
     border: 2px solid #3D2E66 !important;
     border-radius: 6px;
 }
-.st-key-card-0 { border-color: #F72585 !important; }
+[class*="st-key-card-0-"] { border-color: #F72585 !important; }
 [class*="st-key-card-"] [data-testid="stImage"] img { border-radius: 4px; }
 [class*="st-key-card-"] .stMarkdown img,
-.st-key-spotlight .stMarkdown img { height: 34px; border-radius: 8px; margin: 0 4px 4px 0; }
+[class*="st-key-spotlight"] .stMarkdown img { height: 34px; border-radius: 8px; margin: 0 4px 4px 0; }
 
 .lm-sticker {
     display: inline-block;
@@ -93,6 +95,10 @@ button[kind="primary"], [data-testid="stBaseButton-primary"] {
 """,
     unsafe_allow_html=True,
 )
+
+# Retro effects: grid floor, PLAY boot screen, typewriter, static, rewind loader, glitch
+retro_fx.inject()
+retro_fx.boot_screen()
 
 st.markdown(
     f"""
@@ -144,7 +150,18 @@ with find_tab:
     # ---- Results ----
     if st.session_state.clues:
         query = ". ".join(st.session_state.clues)
-        with st.spinner("Rewinding the tape..."):
+        search_key = (query, media_type, tuple(year_range))
+        if st.session_state.get("last_search") != search_key:
+            # A new search: show the VHS rewind loader, then reveal the results
+            loader = st.empty()
+            retro_fx.show_rewind(loader)
+            results = search_media(query, media_type, year_range)
+            time.sleep(retro_fx.REWIND_SECONDS)
+            loader.empty()
+            st.session_state.last_search = search_key
+            st.session_state.search_id = st.session_state.get("search_id", 0) + 1
+        else:
+            # Same search as before (e.g. the page refreshed): no loader
             results = search_media(query, media_type, year_range)
 
         if len(st.session_state.clues) > 1:
@@ -173,7 +190,8 @@ with find_tab:
             st.info("No matches. Try loosening the filters or adding more detail.")
         else:
             for i, (_, row) in enumerate(results.iterrows()):
-                with st.container(border=True, key=f"card-{i}"):
+                # A new key per search makes the top card replay its glitch reveal
+                with st.container(border=True, key=f"card-{i}-s{st.session_state.search_id}"):
                     poster_col, text_col = st.columns([1, 2.4])
 
                     poster = row.get("poster_url", "")
