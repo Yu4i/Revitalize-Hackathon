@@ -1,0 +1,10 @@
+# CPU-only PyTorch keeps installs small (important for Streamlit Cloud).
+# On Mac this line is ignored and the normal Mac build is used.
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch
+sentence-transformers
+streamlit
+pandas
+numpy
+requests
+python-dotenv

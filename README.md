@@ -1,12 +1,35 @@
-# Revitalize-Hackathon
-testing
-ideas:
+# 🔎 ReFound
 
-- old thing search - akinator
+**Bring forgotten media back to life.** Describe a movie or TV show you barely remember, and ReFound finds it, shows you the poster, and tells you where you can watch it today.
 
+Built in 36 hours for the "Revitalize" hackathon.
 
-1. The Search Engine (The Brain)
-You have two main paths to translate a vague memory into a specific title:The LLM Approach (Recommended for Hackathons): Pass the user's description to an API like OpenAI, Anthropic, or Gemini. Use a strict system prompt commanding the model to act as a media archivist and return ONLY a JSON array containing the top 3 most likely titles, their release years, and the media type. LLMs excel at this because their training data naturally connects tropes, plot summaries, and common cultural conversations.The Vector Database Approach (More Custom): Download bulk datasets of movie plots (IMDb/Kaggle datasets), game synopses, and song lyrics. Convert these text blocks into vector embeddings and store them in a database like Pinecone or Weaviate. When a user inputs a query, embed it and perform a cosine similarity search to find the closest matching plot.
-2. The Metadata APIs (The Visuals)
-Once your core logic identifies a potential title and year, you must fetch official artwork and details so the user can visually recognize their forgotten media.Movies & TV: Use the TMDB (The Movie Database) API. It is free, highly rate-limited, and provides high-resolution posters, synopses, and cast lists.Video Games: Use the IGDB API (run by Twitch) or the RAWG API to fetch box art, platform details, and gameplay screenshots.Music: Use the Spotify Web API to pull album covers and 30-second playable audio previews so the user can listen to confirm the song.
-3. The Application WorkflowInput: The user types, "A 90s movie where a kid gets a million dollars and buys a castle and a water slide."Resolution: Your backend queries the LLM, which confidently returns Blank Check (1994).Enrichment: Your backend automatically pings the TMDB API using that exact title and year to retrieve the movie poster and official synopsis.Display: The frontend presents the visually rich result card to the user for confirmation.
+## How it works
+ReFound uses an open-source AI model ([Sentence Transformers](https://www.sbert.net/), `all-MiniLM-L6-v2`) to turn every title's description into an *embedding*: a list of numbers that captures its meaning. Your memory gets turned into an embedding too, and ReFound returns the titles closest in meaning. So "a kid with a watch that turns him into aliens" finds *Ben 10* even though none of those words are in its description.
+
+## Run it on your Mac
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+streamlit run app.py
+```
+The first run downloads the AI model (about 90 MB), so give it a minute.
+
+Without `media.csv` the app uses an 8-title sample. To build the real database, see `build_dataset.py`.
+
+## Files
+| File | What it does |
+|---|---|
+| `app.py` | The website (Streamlit) |
+| `search.py` | The matching engine |
+| `build_dataset.py` | Downloads titles from TMDB and pre-computes embeddings |
+| `sample_media.csv` | Tiny test dataset |
+| `media.csv`, `embeddings.npy` | The real database (created by `build_dataset.py`) |
+
+## Team
+See [TEAM_PLAN.md](TEAM_PLAN.md).
+
+## Credits
+- Movie and TV data and posters: [TMDB](https://www.themoviedb.org/). This product uses the TMDB API but is not endorsed or certified by TMDB.
+- Embedding model: [sentence-transformers/all-MiniLM-L6-v2](https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2) (Apache 2.0)
